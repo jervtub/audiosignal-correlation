@@ -1,7 +1,7 @@
 {
 	"background_color": "#ffffff",
 	"theme_color": "#333333",
-	"name": "Blog posts by jervtub about audio and web related matter",
+	"name": "Audio and web related matter",
 	"short_name": "jervtub_blog",
 	"display": "minimal-ui",
 	"start_url": "/",
