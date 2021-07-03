@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" href="favicon.ico" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link rel='stylesheet' href='global.css'>
+		<link rel='manifest' href='manifest.json' crossorigin='use-credentials'>
+
+		<script src="lib/dsp/fft.js" type="text/javascript"></script>
+		<script src="lib/dsp/sounds.js" type="text/javascript"></script>
+
+		<script src="lib/gpu/m4.js" type="text/javascript"></script>
+		<script src="lib/gpu/webgl-utils.js" type="text/javascript"></script>
+
+		<script src="lib/base.js" type="text/javascript"></script>
+		<script src="lib/benchmark.js" type="text/javascript"></script>
+		<script src="lib/compare.js" type="text/javascript"></script>
+		<script src="lib/gpu.js" type="text/javascript"></script>
+
+		<script src="lib/run.js" type="text/javascript"></script>
+
+		<link rel="stylesheet" href="external/simple.min.css">
+		<link rel="stylesheet" href="external/toast.css">
+
+	</head>
+	<body>
+
+		<header>
+			<h1>Benchmark code for audiosignal correlation</h1>
+
+			<div style="margin-top:1em; max-width:800px; text-align:	left;" class="grid__col--centered">
+				<!-- <p>Select target signal size, source signal size, and run the benchmark.</p> -->
+				<!-- <p>The source code contains a Svelte project and lacks an interface, in order to simplify benchmarking on your own device I build this page separately.</p> -->
+				<p>Minimal benchmark environment</p>
+				<ul>
+					<li>
+						The benchmark runs on powers of two, this is convenient for GPU texture sizes and shader computations.</p>
+					</li>
+					<li>
+						Per GPU benchmark, 100 randomly picked correlation sample results are checked for correctness
+					</li>
+					<li>
+						Red <span style="font-style: italic;">JavaScript</span> buttons <span style="font-weight: normal;">take a very long time to run on my device</span>
+					</li>
+					<li>
+						Red <span style="font-style: italic;">GPU</span> buttons <span style="font-weight: normal;">crash on my machine</span>
+					</li>
+					<li>
+						<span style="font-weight: bold;">If the GPU crashes:</span>
+						<ul>
+							<li>
+								<span style="font-weight: normal; text-color: red;">No further GPU benchmark will succeed</span>
+							</li>
+							<li>
+								<span style="font-weight: normal;">Restart the website or the web-browser for further benchmarking</span>
+							</li>
+							<li>
+								<span style="font-weight: bold; color: red;">Benchmark results may be invalid</span>
+
+							</li>
+						</ul>
+					</li>
+				</ul>
+
+				<p>Further remarks:</p>
+					<ul>
+						<li>
+							The current code doesn't clean up resources correctly (shaders, textures, GL-programs). <br>
+							This will make the GPU benchmark crash after a few runs.
+						</li>
+						<li>
+							Running a large JavaScript benchmark can take up to an hour <br>
+							The web-browser will warn that a JavaScript thread hangs indefinitely
+						</li>
+						<li>
+							Before the benchmark starts, dummy signal data is generated. This may take a while. <br>
+							Loading data into the GPU and reading data from the GPU is part of the benchmark.
+						</li>
+						<li>
+							Future work will be done to make this benchmarking tool more stable and user-friendly
+						</li>
+					</ul>
+					<!-- <li>
+						A chart is generated to visualize performance results
+					</li> -->
+					<!-- <li>
+						JavaScript benchmark can take <span style="font-weight: bold;">a very long time to run</span>, therefore every 10.000 computations
+						 <ul>
+							 <li>
+								 The progress is updated
+							 </li>
+							 <li>
+								 Allows cancelling
+							 </li>
+						 </ul>
+					</li> -->
+			</div>
+
+		</header>
+
+		<!-- <main> -->
+
+			<table style="min-width:1000px;">
+			    <thead>
+							<tr>
+								<th colspan="1"></th>
+								<th colspan="2">Target signal</th>
+								<th colspan="2">Source signal</th>
+								<th colspan="2">Benchmark</th>
+								<th colspan="2">Result</th>
+							</tr>
+			        <tr>
+			            <th colspan="1">Test case</th>
+			            <th colspan="1">Samples</th>
+			            <th colspan="1">Time (ms)</th>
+			            <th colspan="1">Samples</th>
+			            <th colspan="1">Time (ms)</th>
+			            <th colspan="1">JS</th>
+			            <th colspan="1">GPU</th>
+			            <th colspan="1">JS (ms)</th>
+			            <th colspan="1">GPU (ms)</th>
+			        </tr>
+			    </thead>
+				    <tbody id="tablebody">
+				    </tbody>
+			</table>
+
+		<!-- </main> -->
+
+		<script>
+	    let base = init_base();
+	    let gpu  = init_gpu();
+
+			function correlate( f, g, tau ) {
+				let result = 0;
+	      for (var i = 0; i < f.length; i++) {
+	        result += f[ i ] * g[ ( i + tau ) ];
+	      }
+			}
+
+			function same(a,b, e) {
+				return a > b - e && a < b + e;
+			}
+
+			function benchmarkJavaScript( testcase, target_size, source_size ) {
+		    let target = white_noise( target_size );
+		    let source = pink_noise( source_size );
+		     base.setup(target,source);
+		    let  base_result = benchmark(  base.run, target, source);
+		     base.clean();
+
+		    console.log( base_result.text);
+				document.getElementById( `js${testcase}` ).innerHTML = Math.round(base_result.time);
+			}
+
+			function benchmarkGPU( testcase, target_size, source_size ) {
+		    let target = white_noise( target_size );
+		    let source = pink_noise( source_size );
+		     gpu.setup(target,source);
+		    let  gpu_result = benchmark(  gpu.run, target, source);
+		     gpu.clean();
+
+		    console.log( gpu_result.text);
+
+				// Test
+				let result = gpu_result.result;
+				let isCorrect = true;
+				if (result.length == 0 ) isCorrect = false;
+				else
+					for (let i = 0 ; i < 100; ++i) {
+						let index = Math.floor(Math.random() * result.length);
+						let actual = correlate( target, source, index );
+						if ( same (result[i], actual, 0.001) ) {
+							isCorrect = false;
+							break;
+						}
+					}
+
+				if (isCorrect) {
+					document.getElementById( `gpu${testcase}` ).innerHTML = Math.round(gpu_result.time);
+				} else {
+					document.getElementById( `gpu${testcase}` ).innerHTML = "Failed";
+				}
+			}
+
+			let target = Math.pow(2,1);
+			let source = Math.pow(2,1);
+
+			let tablebody = document.getElementById("tablebody");
+			for (let i = 10; i <= 20; ++i) {
+				// new line
+				let tr = document.createElement("tr");
+				tablebody.appendChild( tr );
+
+				// test case
+				{
+					let td1 = document.createElement("td");
+					td1.innerHTML = i-9;
+					tr.appendChild( td1 );
+				}
+
+				// target
+				{
+					// let td1 = document.createElement("td");
+					let td2 = document.createElement("td")
+					let td3 = document.createElement("td")
+					// td1.innerHTML = i;
+					td2.innerHTML = Math.pow(2,i);
+					td3.innerHTML = Math.round(Math.pow(2,i) /44.100);
+					// tr.appendChild( td1 );
+					tr.appendChild( td2 );
+					tr.appendChild( td3 );
+				}
+
+				// source
+				{
+					// let td1 = document.createElement("td");
+					let td2 = document.createElement("td")
+					let td3 = document.createElement("td")
+					// td1.innerHTML = i+1;
+					td2.innerHTML = Math.pow(2,i+1);
+					td3.innerHTML = Math.round(Math.pow(2,i+1) /44.100);
+					// tr.appendChild( td1 );
+					tr.appendChild( td2 );
+					tr.appendChild( td3 );
+				}
+
+				// benchmark
+				{
+					let td1 = document.createElement("td")
+					let button1 = document.createElement("button")
+					button1.innerHTML = "Benchmark";
+					button1.addEventListener("click", (event) => {
+						benchmarkJavaScript( i-9, Math.pow(2,i), Math.pow(2,i+1) );
+					})
+
+					if (i-9 >= 7) button1.style.background = "red";
+
+					tr.appendChild( td1 );
+					td1.appendChild( button1 );
+
+					let td2 = document.createElement("td")
+					let button2 = document.createElement("button")
+					button2.innerHTML = "Benchmark";
+					button2.addEventListener("click", (event) => {
+						benchmarkGPU( i-9, Math.pow(2,i), Math.pow(2,i+1) );
+					})
+
+					if (i-9 >= 10) button2.style.background = "red";
+
+					tr.appendChild( td2 );
+					td2.appendChild( button2 );
+
+				}
+
+				// Add output fields
+				{
+					let td1 = document.createElement("td")
+					td1.innerHTML = "-----";
+					td1.id = `js${i-9}`
+					tr.appendChild( td1 );
+
+					let td2 = document.createElement("td")
+					td2.innerHTML = "-----";
+					td2.id = `gpu${i-9}`
+					tr.appendChild( td2 );
+				}
+			}
+
+			// function targetUpdate(power) {
+			// 	target = Math.pow(2,power);
+			//   document.querySelector('#targetid').value = Math.pow(2,power);
+			//   document.querySelector('#targettimeid').value = (Math.pow(2,power) / 44.1).toFixed(0);
+			// 	if (target >= source) {
+			// 		// console.log(power)
+			// 		sourceUpdate(parseInt(power)+1);
+			// 	}
+			// }
+			//
+			// function sourceUpdate(power) {
+			// 	// console.log(power)
+			// 	source = Math.pow(2,power);
+			//   document.querySelector('#sourceid').value = Math.pow(2,power);
+			//   document.querySelector('#sourcetimeid').value = (Math.pow(2,power) / 44.1).toFixed(0);
+			// 	if (source <= target) {
+			// 		targetUpdate(parseInt(power)-1);
+			// 	}
+			// }
+		</script>
+	</body>
+
+</html>
