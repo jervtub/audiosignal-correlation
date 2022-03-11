@@ -32,6 +32,7 @@ Test website can be found at [https://jervtub.github.io/audiosignal-correlation]
 | Shader compilation fails due to too high iteration count in the for-loop | | Decrease target/source signal sizes | 
 
 #### Credits
+* Sveltejs, powered by [`create-svelte`](https://github.com/sveltejs/kit/tree/master/packages/create-svelte)
 * [webgl-fundamentals](https://webglfundamentals.org/webgl/lessons/webgl-gpgpu.html)
    * Code examples and overall explanation of GPGPU with WebGL
 * [vizitsolutions](http://www.vizitsolutions.com/portfolio/webgl/gpgpu/matrixMultiplication.html)
